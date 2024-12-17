@@ -34,7 +34,7 @@ services:
       timeout: 5s
       retries: 5
     volumes:
-      - kafka-data:/var/lib/kafka/data
+      - ${KAFKA_VOLUME:-kafka-data}:/var/lib/kafka/data
 
   llm-service:
     build: .
@@ -65,6 +65,7 @@ services:
       - KAFKA_BROKERS=kafka:29092
       - RUST_BACKTRACE=1
       - RUST_LOG=debug
+      - KAFKA_VOLUME=kafka-test-data
     deploy:
       resources:
         reservations:
@@ -91,3 +92,5 @@ volumes:
   cargo-cache:
   target-cache:
   kafka-data:
+  kafka-test-data:
+    name: kafka-test-data

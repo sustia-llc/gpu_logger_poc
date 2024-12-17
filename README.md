@@ -61,7 +61,7 @@ sudo systemctl restart docker
 ## Running Tests
 
 ```bash
-# Run unit tests locally (requires CUDA GPU)
+# Run unit tests locally with MockLogger (requires CUDA GPU)
 cargo test
 
 # Run integration tests and ignored tests with Kafka in Docker
@@ -88,12 +88,32 @@ The project includes a complete Docker setup with:
 
 To use Docker for testing:
 ```bash
-# Run integration tests and ignored tests with Kafka in Docker
-docker-compose up test  # This runs tests marked with #[ignore]
+docker-compose build
+
+# For normal operation with persistent Kafka data
+docker-compose up
+
+# For running tests with a separate test volume
+docker-compose run test
+
+# Clean up data between runs, e.g. Container "b4e44781be7d" is unhealthy
+docker-compose down -v
 
 # Or run specific services
 docker-compose up -d kafka  # Start Kafka only
 docker-compose up llm-service  # Run main service
+```
+
+## Docker Architecture
+
+```mermaid
+graph TD
+    subgraph Docker Environment
+        Kafka -->|Depends on| Zookeeper
+        Kafka --- |Persists| KafkaVol[(kafka-data volume)]
+        LLM[LLM Service] -->|Writes logs| Kafka
+        LLM -.->|Requires| GPU
+    end
 ```
 
 ### Inspecting Kafka Logs
