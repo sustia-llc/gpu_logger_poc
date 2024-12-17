@@ -74,6 +74,7 @@ The project includes a complete Docker setup with:
 - NVIDIA GPU runtime support
 - Test container with cargo caching
 - Health checks for dependencies
+- Persistent Kafka logs
 
 To use Docker for testing:
 ```bash
@@ -83,6 +84,33 @@ docker-compose up test
 # Or run specific services
 docker-compose up -d kafka  # Start Kafka only
 docker-compose up llm-service  # Run main service
+```
+
+### Inspecting Kafka Logs
+
+You can inspect the Kafka logs using the following commands:
+
+```bash
+# List all available topics
+docker-compose exec kafka kafka-topics --bootstrap-server kafka:29092 --list
+
+# Read messages from gpu-monitor topic (from beginning)
+docker-compose exec kafka kafka-console-consumer --bootstrap-server kafka:29092 --topic gpu-monitor --from-beginning
+
+# Read only new messages as they arrive
+docker-compose exec kafka kafka-console-consumer --bootstrap-server kafka:29092 --topic gpu-monitor
+
+# Read messages with timestamps
+docker-compose exec kafka kafka-console-consumer --bootstrap-server kafka:29092 --topic gpu-monitor --property print.timestamp=true --from-beginning
+
+# Read messages with keys
+docker-compose exec kafka kafka-console-consumer --bootstrap-server kafka:29092 --topic gpu-monitor --property print.key=true --property key.separator=: --from-beginning
+```
+
+The Kafka logs are persisted in a Docker volume named `kafka-data`. You can find its location on your host machine using:
+
+```bash
+docker volume inspect gpu_logger_poc_kafka-data
 ```
 
 ## Usage Example
