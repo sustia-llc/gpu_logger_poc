@@ -2,7 +2,7 @@ use anyhow::Result;
 use candle_core::{Device, Tensor};
 use std::time::Instant;
 use std::process::Command;
-use crate::Logger;
+use crate::logger::LogAction;
 
 pub struct GpuMetrics {
     pub execution_time_ms: u64,
@@ -10,13 +10,13 @@ pub struct GpuMetrics {
     pub operation_name: String,
 }
 
-pub struct GpuMonitor {
+pub struct GpuMonitor<L: LogAction> {
     device: Device,
-    logger: Logger,
+    logger: L,
 }
 
-impl GpuMonitor {
-    pub fn new(device: Device, logger: Logger) -> Self {
+impl<L: LogAction> GpuMonitor<L> {
+    pub fn new(device: Device, logger: L) -> Self {
         Self { device, logger }
     }
 
@@ -121,10 +121,9 @@ impl GpuMonitor {
 #[cfg(test)]
 mod mock {
     use super::*;
-    use rdkafka::ClientConfig;
-    use rdkafka::producer::FutureProducer;
 
-    #[derive(Clone, Default)]
+    // Simple mock logger
+    #[derive(Clone)]
     pub struct MockLogger {}
 
     impl MockLogger {
@@ -133,21 +132,10 @@ mod mock {
         }
     }
 
-    // No-op Logger for tests
-    impl From<MockLogger> for Logger {
-        fn from(_mock: MockLogger) -> Self {
-            Self {
-                producer: ClientConfig::new()
-                    .set("bootstrap.servers", "localhost:9092")
-                    .set("message.timeout.ms", "1000")
-                    .set("socket.timeout.ms", "1000")
-                    .set("request.timeout.ms", "1000")
-                    .set("metadata.request.timeout.ms", "1000")
-                    .set("message.send.max.retries", "0")
-                    .create::<FutureProducer>()
-                    .unwrap(),
-                topic: "test-topic".to_string(),
-            }
+    #[async_trait::async_trait]
+    impl LogAction for MockLogger {
+        async fn log_action(&self, _action: &str, _component: &str, _details: &str) -> Result<()> {
+            Ok(())
         }
     }
 }
@@ -182,7 +170,7 @@ mod tests {
         let logger = MockLogger::new();
         
         println!("Creating GPU monitor...");
-        let monitor = GpuMonitor::new(device, logger.into());
+        let monitor = GpuMonitor::new(device, logger);
         
         println!("Starting GPU verification...");
         let result = monitor.verify_gpu_compute().await;
@@ -204,7 +192,7 @@ mod tests {
         let device = get_gpu().expect("This test requires a GPU");
         println!("Using device: {:?}", device);
         let logger = MockLogger::new();
-        let monitor = GpuMonitor::new(device.clone(), logger.into());
+        let monitor = GpuMonitor::new(device.clone(), logger);
 
         println!("Creating test tensors...");
         let a = Tensor::randn(0f32, 1.0f32, (100, 100), &device)
@@ -250,7 +238,7 @@ mod tests {
     fn test_gpu_info() {
         let device = get_gpu().expect("This test requires a GPU");
         let logger = MockLogger::new();
-        let monitor = GpuMonitor::new(device, logger.into());
+        let monitor = GpuMonitor::new(device, logger);
         
         let gpu_info = monitor.verify_gpu_info().expect("Failed to get GPU info");
         println!("GPU Info: {}", gpu_info);

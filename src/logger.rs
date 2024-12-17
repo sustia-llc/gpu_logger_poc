@@ -13,6 +13,11 @@ struct LogEntry {
     details: String,
 }
 
+#[async_trait::async_trait]
+pub trait LogAction {
+    async fn log_action(&self, action: &str, component: &str, details: &str) -> Result<()>;
+}
+
 pub struct Logger {
     pub(crate) producer: FutureProducer,
     pub(crate) topic: String,
@@ -33,8 +38,11 @@ impl Logger {
             topic: topic.to_string(),
         })
     }
+}
 
-    pub async fn log_action(&self, action: &str, component: &str, details: &str) -> Result<()> {
+#[async_trait::async_trait]
+impl LogAction for Logger {
+    async fn log_action(&self, action: &str, component: &str, details: &str) -> Result<()> {
         let log_entry = LogEntry {
             timestamp: Utc::now().to_rfc3339(),
             action: action.to_string(),
@@ -43,7 +51,7 @@ impl Logger {
         };
 
         let payload = serde_json::to_string(&log_entry)?;
-        
+
         self.producer
             .send(
                 FutureRecord::to(&self.topic)

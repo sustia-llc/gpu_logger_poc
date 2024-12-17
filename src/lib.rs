@@ -5,9 +5,9 @@ use anyhow::Result;
 use candle_core::Device;
 
 pub use gpu_monitor::{GpuMonitor, GpuMetrics};
-pub use logger::Logger;
+pub use logger::{Logger, LogAction};
 
-pub async fn init_gpu_monitor() -> Result<GpuMonitor> {
+pub async fn init_gpu_monitor() -> Result<GpuMonitor<Logger>> {
     let device = Device::cuda_if_available(0)
         .expect("CUDA GPU is required but not available");
     let logger = Logger::new("kafka:29092", "gpu-monitor")?;
