@@ -1,5 +1,5 @@
 use anyhow::Result;
-use candle_core::{Device, Tensor, Module};
+use candle_core::{Device, Tensor};
 use std::time::Instant;
 use std::process::Command;
 use crate::Logger;
@@ -67,14 +67,6 @@ impl GpuMonitor {
         ).await?;
 
         Ok(result)
-    }
-
-    pub async fn verify_model_execution<M: Module>(&self, model: &M, input: &Tensor) -> Result<Tensor> {
-        self.log_operation(
-            "model_inference",
-            &input.dims().iter().map(|&d| d as i64).collect::<Vec<_>>(),
-            || model.forward(input).map_err(|e| anyhow::anyhow!("{}", e))
-        ).await
     }
 
     pub async fn verify_gpu_compute(&self) -> Result<bool> {     

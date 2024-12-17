@@ -18,14 +18,16 @@ A system for verifying GPU execution of ML models with immutable logging via Kaf
    - Uses Kafka for reliable logging
    - Timestamps all operations
    - Records operation details and performance metrics
-   - Preserves operation history
+   - Preserves operation history in kafka-data volume
 
 3. **Performance Verification**
-   - Hardware capabilities inspection
+   - Hardware capabilities inspection via nvidia-smi
    - Operation execution times
    - Device type verification
    - GPU vs CPU performance comparison
-   - Matrix multiplication benchmarking (2000x2000)
+   - Matrix multiplication benchmarking
+     - 2000x2000 matrices for production verification
+     - 100x100 matrices for faster unit tests
 
 ### Design Philosophy
 
@@ -74,7 +76,7 @@ The project includes a complete Docker setup with:
 - NVIDIA GPU runtime support
 - Test container with cargo caching
 - Health checks for dependencies
-- Persistent Kafka logs
+- Persistent Kafka logs in kafka-data volume
 
 To use Docker for testing:
 ```bash
@@ -84,33 +86,6 @@ docker-compose up test
 # Or run specific services
 docker-compose up -d kafka  # Start Kafka only
 docker-compose up llm-service  # Run main service
-```
-
-### Inspecting Kafka Logs
-
-You can inspect the Kafka logs using the following commands:
-
-```bash
-# List all available topics
-docker-compose exec kafka kafka-topics --bootstrap-server kafka:29092 --list
-
-# Read messages from gpu-monitor topic (from beginning)
-docker-compose exec kafka kafka-console-consumer --bootstrap-server kafka:29092 --topic gpu-monitor --from-beginning
-
-# Read only new messages as they arrive
-docker-compose exec kafka kafka-console-consumer --bootstrap-server kafka:29092 --topic gpu-monitor
-
-# Read messages with timestamps
-docker-compose exec kafka kafka-console-consumer --bootstrap-server kafka:29092 --topic gpu-monitor --property print.timestamp=true --from-beginning
-
-# Read messages with keys
-docker-compose exec kafka kafka-console-consumer --bootstrap-server kafka:29092 --topic gpu-monitor --property print.key=true --property key.separator=: --from-beginning
-```
-
-The Kafka logs are persisted in a Docker volume named `kafka-data`. You can find its location on your host machine using:
-
-```bash
-docker volume inspect gpu_logger_poc_kafka-data
 ```
 
 ## Usage Example
@@ -129,9 +104,6 @@ println!("GPU Info: {}", gpu_info);  // Shows GPU name, UUID, clocks, etc.
 let is_working = monitor.verify_gpu_compute().await?;
 assert!(is_working, "GPU must perform significantly better than CPU");
 
-// Run model inference
-let result = monitor.verify_model_execution(&model, &input).await?;
-
 // Log custom GPU operations
 let result = monitor.log_operation(
     "matrix_multiply",
@@ -142,10 +114,11 @@ let result = monitor.log_operation(
 
 ## Monitoring Output
 
-The system logs operations to Kafka:
+The system logs operations to Kafka with timestamps and unique keys:
 
 ```json
 {
+    "timestamp": "2024-01-XX...",
     "action": "gpu_operation",
     "component": "gpu_monitor",
     "details": "Operation: matrix_multiply, Input Shape: [2000, 2000], Time: 123ms, Device: Cuda(0)"
@@ -161,14 +134,10 @@ The system verifies GPU execution through:
    - Maximum SM and memory clocks
 2. Performance verification
    - Explicit CUDA device requirement
-   - Performance comparison using 2000x2000 matrix multiplication
+   - Performance comparison using matrix multiplication
    - Validation of tensor operations
    - Requiring GPU performance to be at least 2x faster than CPU
    - No CPU fallback - tests fail if GPU is not available
-3. Model execution verification
-   - Validates model loading
-   - Verifies inference execution
-   - Monitors performance metrics
 
 ## Requirements
 
@@ -176,4 +145,10 @@ The system verifies GPU execution through:
 - CUDA toolkit and nvidia-smi installed
 - Docker with NVIDIA Container Toolkit (for Docker usage)
 - Kafka instance for logging (provided via Docker)
-- Rust toolchain
+- Rust toolchain with CUDA support
+
+## Possible next steps
+
+- Model loading and inference support
+- Model execution verification
+- Performance metrics for model operations
