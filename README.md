@@ -58,6 +58,9 @@ curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
 sudo apt install nvidia-container-toolkit
 sudo systemctl restart docker
 
+# For unit tests running locally
+sudo apt install cmake
+
 # Kafka is required for logging (if running locally)
 # Or use provided docker-compose setup
 ```
@@ -67,6 +70,8 @@ sudo systemctl restart docker
 ```bash
 # Run unit tests locally with MockLogger (requires CUDA GPU)
 cargo test
+
+docker-compose build
 
 # Run integration tests and ignored tests with Kafka in Docker
 docker-compose up test  # This runs tests marked with #[ignore]
