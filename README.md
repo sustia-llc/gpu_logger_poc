@@ -216,3 +216,44 @@ The system verifies GPU execution through:
 - Model loading and inference support
 - Model execution verification
 - Performance metrics for model operations
+
+## Kafka Log Immutability Features
+
+The system leverages several Kafka features that ensure log integrity:
+
+1. **Offset-Based Sequencing**
+   - Every message has a unique, sequential offset number
+   - Offsets cannot be modified or reordered
+   - Gaps in sequences indicate tampering attempts
+   - Consumer groups track these offsets, making skip detection trivial
+
+2. **Partition Log Structure**
+   - Logs are append-only within partitions
+   - Messages are written sequentially to disk
+   - Previous messages cannot be modified without corrupting the entire log
+   - Each message includes a CRC32 checksum
+
+3. **Message Timestamps**
+   - Two timestamp types: creation time and log append time
+   - Broker-side timestamps cannot be forged by producers
+   - LogAppendTime is set by the broker, not the client
+   - Timestamp validation prevents out-of-order messages
+
+4. **Retention Policies**
+   - Immutable retention period can be set
+   - Messages cannot be deleted before retention period expires
+   - Deletion only occurs through automated policies
+   - Segment-based storage prevents selective message deletion
+
+5. **Replication Features**
+   - Messages are replicated across multiple brokers
+   - In-sync replicas maintain identical logs
+   - Replication factor makes tampering detectable
+   - Leader/follower model ensures consistency
+
+To forge logs, an attacker would need to:
+- Break the offset sequencing
+- Bypass broker timestamp validation
+- Corrupt all replica copies
+- Recalculate all checksums
+- Maintain partition consistency
