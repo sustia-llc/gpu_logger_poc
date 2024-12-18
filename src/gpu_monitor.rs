@@ -1,9 +1,13 @@
 use anyhow::Result;
 use candle_core::{Device, Tensor};
-use std::{error::Error, time::Instant};
+use std::{error::Error, time::Instant, sync::LazyLock};
 use nvml_wrapper::Nvml;
 use std::process::Command;
 use crate::logger::LogAction;
+
+static NVML: LazyLock<Result<Nvml, nvml_wrapper::error::NvmlError>> = LazyLock::new(|| {
+    Nvml::init()
+});
 
 pub struct GpuMetrics {
     pub execution_time_ms: u64,
@@ -22,7 +26,7 @@ impl<L: LogAction> GpuMonitor<L> {
     }
 
     pub fn get_gpu_info(&self) -> Result<Vec<String>, Box<dyn Error>> {
-        let nvml = Nvml::init()?;
+        let nvml = NVML.as_ref().map_err(|e| Box::new(e) as Box<dyn Error>)?;
         let device_count = nvml.device_count()?;
         let mut gpu_info = Vec::new();
 
