@@ -1,6 +1,7 @@
 use anyhow::Result;
 use candle_core::{Device, Tensor};
-use std::time::Instant;
+use std::{error::Error, time::Instant};
+use nvml_wrapper::Nvml;
 use std::process::Command;
 use crate::logger::LogAction;
 
@@ -18,6 +19,35 @@ pub struct GpuMonitor<L: LogAction> {
 impl<L: LogAction> GpuMonitor<L> {
     pub fn new(device: Device, logger: L) -> Self {
         Self { device, logger }
+    }
+
+    pub fn get_gpu_info(&self) -> Result<Vec<String>, Box<dyn Error>> {
+        let nvml = Nvml::init()?;
+        let device_count = nvml.device_count()?;
+        let mut gpu_info = Vec::new();
+
+        for i in 0..device_count {
+            let device = nvml.device_by_index(i)?;
+            
+            // Get the requested information
+            let name = device.name()?;
+            let uuid = device.uuid()?;
+            let pci_info = device.pci_info()?;
+            let clocks = device.clock_info(nvml_wrapper::enum_wrappers::device::Clock::Graphics)?;
+
+            // Format it similar to nvidia-smi CSV output
+            let info = format!("{},{},{},{},{}",
+                name,
+                uuid,
+                pci_info.bus_id,
+                clocks, // Graphics clock
+                device.clock_info(nvml_wrapper::enum_wrappers::device::Clock::Memory)? // Memory clock
+            );
+            
+            gpu_info.push(info);
+        }
+
+        Ok(gpu_info)
     }
 
     pub fn verify_gpu_info(&self) -> Result<String> {
@@ -241,7 +271,7 @@ mod tests {
     }
 
     #[test]
-    fn test_gpu_info() {
+    fn test_verify_gpu_info() {
         let device = get_gpu().expect("This test requires a GPU");
         let logger = MockLogger::new();
         let monitor = GpuMonitor::new(device, logger);
@@ -249,5 +279,31 @@ mod tests {
         let gpu_info = monitor.verify_gpu_info().expect("Failed to get GPU info");
         println!("GPU Info: {}", gpu_info);
         assert!(!gpu_info.is_empty(), "GPU info should not be empty");
+    }
+
+    #[test]
+    fn test_get_gpu_info() {
+        let device = get_gpu().expect("This test requires a GPU");
+        let logger = MockLogger::new();
+        let monitor = GpuMonitor::new(device, logger);
+        let gpu_info = monitor.get_gpu_info().expect("Failed to get GPU info");
+
+        assert!(!gpu_info.is_empty(), "Should have at least one GPU");
+        
+        // Verify format of each GPU info string
+        for info in gpu_info {
+            let parts: Vec<&str> = info.split(',').collect();
+            assert_eq!(parts.len(), 5, "Each GPU info should have 5 comma-separated values");
+            
+            // Name shouldn't be empty
+            assert!(!parts[0].is_empty(), "GPU name should not be empty");
+            // UUID should be present
+            assert!(!parts[1].is_empty(), "GPU UUID should not be empty");
+            // PCI bus ID should be present
+            assert!(!parts[2].is_empty(), "PCI bus ID should not be empty");
+            // Clock speeds should be numeric
+            assert!(parts[3].parse::<i32>().is_ok(), "Graphics clock should be numeric");
+            assert!(parts[4].parse::<i32>().is_ok(), "Memory clock should be numeric");
+        }
     }
 } 
